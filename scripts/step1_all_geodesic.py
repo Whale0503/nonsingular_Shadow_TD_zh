@@ -1,0 +1,262 @@
+"""
+非奇异黑洞（Nonsingular Black Hole）类光测地线计算
+度规形式：B(r) = 1 - R_g(r)/r，其中 R_g(r) = 2M * (1 - exp(-r^3 / (2M * r0_vac^2)))
+"""
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib
+# 配置 matplotlib 使用中文字体，避免字体缺失警告
+matplotlib.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+matplotlib.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+import time
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import cpu_count
+from tqdm import tqdm
+import json
+from scipy.optimize import brentq
+
+# === 非奇异黑洞度规函数 ===
+def B_func_nonsingular(r, M, r0_vac):
+    """非奇异黑洞度规函数 B(r) = 1 - R_g(r)/r"""
+    rg = 2.0 * M
+    r_star_cubed = r0_vac**2 * rg
+    m_r = M * (1.0 - np.exp(-(r**3) / (r_star_cubed)))
+    Br = 1.0 - 2.0 * m_r / r
+    return Br
+
+def dB_dr_nonsingular(r, M, r0_vac):
+    """非奇异黑洞度规导数"""
+    rg = 2.0 * M
+    r_star_cubed = r0_vac**2 * rg
+    exp_term = np.exp(-(r**3) / (r_star_cubed))
+    m_r = M * (1.0 - exp_term)
+    dm_dr = M * exp_term * (3.0 * r**2) / (r_star_cubed)
+    dBdr = 2.0 * m_r / r**2 - 2.0 * dm_dr / r
+    return dBdr
+
+def find_outer_horizon(M, r0_vac, r_min=1e-3, r_max=10.0, N=20000):
+    """寻找非奇异黑洞外视界位置（B(r) = 0）"""
+    r_grid = np.linspace(r_min, r_max, N)
+    B_vals = B_func_nonsingular(r_grid, M, r0_vac)
+    
+    roots = []
+    for i in range(len(r_grid) - 1):
+        if B_vals[i] * B_vals[i+1] < 0:
+            r1, r2 = r_grid[i], r_grid[i+1]
+            try:
+                root = brentq(B_func_nonsingular, r1, r2, args=(M, r0_vac))
+                roots.append(root)
+            except:
+                continue
+    
+    if len(roots) == 0:
+        return None
+    return max(roots)  # 最外层视界
+
+# === 初始条件生成 ===
+def get_initial_conditions(b, r0):
+    tan_phi0 = (b / r0) / np.sqrt(1 - (b**2 / r0**2)) #渐进平直区域观测
+    mu0 = 1 / r0
+    dmu_dphi0 = mu0 / tan_phi0
+    return np.array([mu0, dmu_dphi0])
+
+# === 微分方程 ===
+# 非奇异黑洞测地线方程：d²μ/dφ² = -μB + (1/2)dB/dr
+def geodesic_eq(phi, y, M, r0_vac):
+    mu, dmu_dphi = y
+    r = 1.0 / mu
+    B = B_func_nonsingular(r, M, r0_vac)
+    dB = dB_dr_nonsingular(r, M, r0_vac)
+    d2mu_dphi2 = -mu * B + 0.5 * dB
+    return np.array([dmu_dphi, d2mu_dphi2])
+
+# === RK4 固定步长积分 ===
+def rk4_fixed_step(phi, y, dphi, M, r0_vac, eq):
+    k1 = eq(phi, y, M, r0_vac)
+    k2 = eq(phi + dphi/2, y + dphi/2 * k1, M, r0_vac)
+    k3 = eq(phi + dphi/2, y + dphi/2 * k2, M, r0_vac)
+    k4 = eq(phi + dphi, y + dphi * k3, M, r0_vac)
+    y_new = y + dphi/6 * (k1 + 2*k2 + 2*k3 + k4)
+    return y_new
+
+# === 单个轨迹计算函数 ===
+def compute_one_geodesic(b, r0, r0_vac, dphi, r_max, phi_max, M, r_h, b_threshold=1.0, dr=0.01):
+    if b >= b_threshold:
+        return compute_by_phi_step(b, r0, dphi, r_max, phi_max, M, r0_vac, r_h)
+    else:
+        return compute_by_r_step(b, r0, dr, r_max, M, r0_vac, r_h)
+
+# 用 phi 为步进变量（适合 b 较大）
+def compute_by_phi_step(b, r0, dphi, r_max, phi_max, M, r0_vac, r_h):
+    y = get_initial_conditions(b, r0)
+    phi_vals = [0]
+    mu_vals = [y[0]]
+    r_prev = 1 / y[0]
+    phi = 0
+
+    while phi <= phi_max:
+        y = rk4_fixed_step(phi, y, dphi, M, r0_vac, geodesic_eq)
+        phi += dphi
+        mu = y[0]
+        r_current = 1 / mu
+        if r_current <= r_h or (r_prev < r_max and r_current >= r_max):
+            break
+        phi_vals.append(phi)
+        mu_vals.append(mu)
+        r_prev = r_current
+
+    phi_vals_np = np.array(phi_vals)
+    r_vals = 1 / np.array(mu_vals)
+    x_vals = r_vals * np.cos(phi_vals_np)
+    y_vals_cart = r_vals * np.sin(phi_vals_np)
+    dr_list = [r_vals[i] - r_vals[i - 1] for i in range(1, len(r_vals))]
+
+    data = [
+        [b, r, phi, dr] for r, phi, dr in zip(r_vals, phi_vals_np, dr_list)
+        if r_h <= r <= r_max
+    ]
+    return (x_vals, y_vals_cart, 'blue', 0.2), data
+
+# 用 r 为步进变量（适合 b 接近 0）
+def dphi_dr(r, b, M, r0_vac, b_threshold=1.0):
+    numer = b / r**2
+    # 非奇异黑洞度规：B(r) = 1 - R_g(r)/r
+    B = B_func_nonsingular(r, M, r0_vac)
+    denom_sq = 1 - B * b**2 / r**2
+    if denom_sq <= 0 or np.isnan(denom_sq):
+        raise ValueError(
+            f"[dphi/dr Error] Invalid sqrt denom at r = {r:.5f}, b = {b:.5f}. "
+            f"Please decrease b_threshold (currently {b_threshold})."
+        )
+    return numer / np.sqrt(denom_sq)
+
+# 用 r 为步进变量（适合 b 接近 0）
+def compute_by_r_step(b, r_start, dr, r_max, M, r0_vac, r_h, b_threshold=1.0):
+    r_vals = [r_start]
+    phi_vals = [0]
+    r = r_start
+    phi = 0
+
+    while r > r_h:
+    # 动态步长：可按需自定义更复杂的规则
+        if r > 10000:
+            dr_now = 1000
+        elif r > 1000:
+            dr_now = 100
+        elif r > 100:
+            dr_now = 10
+        elif r > r_max:
+            dr_now = 1
+        else:
+            dr_now = 0.01
+
+        try:
+        # 使用 RK4，注意 r 方向为递减
+            k1 = dr_now * dphi_dr(r, b, M, r0_vac, b_threshold)
+            k2 = dr_now * dphi_dr(r - 0.5*dr_now, b, M, r0_vac, b_threshold)
+            k3 = dr_now * dphi_dr(r - 0.5*dr_now, b, M, r0_vac, b_threshold)
+            k4 = dr_now * dphi_dr(r - dr_now, b, M, r0_vac, b_threshold)
+        except ValueError as e:
+            print(f"[compute_by_r_step Warning] {e}")
+            break  # 出现非法根号，终止积分
+
+        dphi = (k1 + 2*k2 + 2*k3 + k4) / 6
+        phi += dphi
+        r -= dr_now  # 光子向黑洞靠近
+
+        phi_vals.append(phi)
+        r_vals.append(r)
+
+    phi_vals_np = np.array(phi_vals)
+    r_vals_np = np.array(r_vals)
+    x_vals = r_vals_np * np.cos(phi_vals_np)
+    y_vals_cart = r_vals_np * np.sin(phi_vals_np)
+    dr_list = [r_vals_np[i] - r_vals_np[i - 1] for i in range(1, len(r_vals_np))]
+
+    data = [
+        [b, r, phi, dr] for r, phi, dr in zip(r_vals_np, phi_vals_np, dr_list)
+        if r_h <= r <= r_max
+    ]
+    return (x_vals, y_vals_cart, 'blue', 0.2), data
+
+# === 主程序入口 ===
+if __name__ == "__main__":
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(base_dir, "..", "config", "config.json")   
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = json.load(f)
+
+    M = config["M"]
+    r0 = config["r0"]
+    r0_vac = config.get("r0_vac", 1.1)  # 非奇异黑洞正则化参数
+    step_b = config["step_b"]
+    dphi = config["dphi"]
+    r_max = config["r_max"]
+    b_max = config["b_max"]
+    xmax = config["xmax"]
+    ymax = config["ymax"]
+    
+    phi_max = 6 * np.pi        # 最大积分角度
+    b_threshold = 1.0
+    
+    # 计算非奇异黑洞外视界
+    r_h = find_outer_horizon(M, r0_vac)
+    if r_h is None:
+        print("警告：未找到视界，使用近似值 r_h = 2M")
+        r_h = 2 * M
+    else:
+        print(f"非奇异黑洞外视界 r_h = {r_h:.6f} M")
+    
+    save_dir = os.path.join(base_dir, "..", "output")
+    os.makedirs(save_dir, exist_ok=True)  # 确保目录存在
+    save_path_fig = os.path.join(save_dir, f"geodesics_M={M}_r0vac={r0_vac}_rmax={r_max:.1f}_stepb={step_b:.3f}.png")
+    save_path_data = os.path.join(save_dir, f"geodesics_M={M}_r0vac={r0_vac}_rmax={r_max:.1f}_stepb={step_b:.3f}.npy")
+    plot_xlim = (-xmax, xmax)      # 图像x轴范围
+    plot_ylim = (-ymax, ymax)      # 图像y轴范围
+    if os.path.exists(save_path_data):
+        print(f"跳过此步，因为文件已存在: {save_path_data}")
+    else:
+        print(f"开始计算：非奇异黑洞（Nonsingular Black Hole）类光测地线（M={M}, r0_vac={r0_vac}）")
+        start_time = time.time()
+        b_range = np.arange(step_b, b_max, step_b)
+
+        curves = []
+        all_data = []
+
+        with ProcessPoolExecutor(max_workers=cpu_count()) as executor:
+            futures = {executor.submit(compute_one_geodesic, b, r0, r0_vac, dphi, r_max, phi_max, M, r_h): b for b in b_range}
+            for future in tqdm(as_completed(futures), total=len(futures), desc="计算中"):
+                curve, data = future.result()
+                curves.append(curve)
+                all_data.extend(data)
+
+    # === 绘图 ===
+        fig, ax = plt.subplots(figsize=(10, 10))
+        for x_vals, y_vals, color, thickness in curves:
+            ax.plot(x_vals, y_vals, color=color, linewidth=thickness)
+        # 绘制非奇异黑洞外视界
+        circle = plt.Circle((0, 0), r_h, color='black', zorder=10, label=f'外视界 r_h={r_h:.3f}M')
+        ax.add_patch(circle)
+        ax.set_aspect('equal')
+        ax.set_xlim(*plot_xlim)
+        ax.set_ylim(*plot_ylim)
+        ax.set_xlabel("x (M)")
+        ax.set_ylabel("y (M)")
+        ax.set_title(f"Nonsingular Black Hole Light Geodesics (M={M}, r0_vac={r0_vac})")
+        ax.legend(loc='upper right')
+        ax.grid(False)
+        os.makedirs(os.path.dirname(save_path_fig), exist_ok=True)
+        plt.savefig(save_path_fig, dpi=300, bbox_inches='tight')
+        plt.close()
+
+    # === 保存数据 ===
+        all_data_sorted = sorted(all_data, key=lambda x: x[0])  # x[0] 是 b
+        all_data_array = np.array(all_data_sorted, dtype=np.float64)
+        os.makedirs(os.path.dirname(save_path_data), exist_ok=True)
+        np.save(save_path_data, all_data_array)
+        
+        print(f"图像保存至：{save_path_fig}")
+        print(f"数据保存至：{save_path_data}")
+        print(f"数据量：{len(all_data)} 行")
+        print(f"第一步耗时：{time.time() - start_time:.2f} 秒")
