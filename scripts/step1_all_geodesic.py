@@ -138,8 +138,8 @@ def compute_by_r_step(b, r_start, dr, r_max, M, r0_vac, r_h, b_threshold=1.0):
     r = r_start
     phi = 0
 
-    while r > r_h:
-    # 动态步长：可按需自定义更复杂的规则
+    while r > r_h:  # 到达外视界后停止积分
+        # 动态步长：可按需自定义更复杂的规则
         if r > 10000:
             dr_now = 1000
         elif r > 1000:
@@ -152,16 +152,16 @@ def compute_by_r_step(b, r_start, dr, r_max, M, r0_vac, r_h, b_threshold=1.0):
             dr_now = 0.01
 
         try:
-        # 使用 RK4，注意 r 方向为递减
+            # 使用 RK4，注意 r 方向为递减
             k1 = dr_now * dphi_dr(r, b, M, r0_vac, b_threshold)
-            k2 = dr_now * dphi_dr(r - 0.5*dr_now, b, M, r0_vac, b_threshold)
-            k3 = dr_now * dphi_dr(r - 0.5*dr_now, b, M, r0_vac, b_threshold)
+            k2 = dr_now * dphi_dr(r - 0.5 * dr_now, b, M, r0_vac, b_threshold)
+            k3 = dr_now * dphi_dr(r - 0.5 * dr_now, b, M, r0_vac, b_threshold)
             k4 = dr_now * dphi_dr(r - dr_now, b, M, r0_vac, b_threshold)
         except ValueError as e:
             print(f"[compute_by_r_step Warning] {e}")
             break  # 出现非法根号，终止积分
 
-        dphi = (k1 + 2*k2 + 2*k3 + k4) / 6
+        dphi = (k1 + 2 * k2 + 2 * k3 + k4) / 6
         phi += dphi
         r -= dr_now  # 光子向黑洞靠近
 
@@ -189,7 +189,7 @@ if __name__ == "__main__":
 
     M = config["M"]
     r0 = config["r0"]
-    r0_vac = config.get("r0_vac", 1.1)  # 非奇异黑洞正则化参数
+    r0_vac = config["r0_vac"]  # 非奇异黑洞正则化参数
     step_b = config["step_b"]
     dphi = config["dphi"]
     r_max = config["r_max"]
@@ -231,7 +231,7 @@ if __name__ == "__main__":
                 curves.append(curve)
                 all_data.extend(data)
 
-    # === 绘图 ===
+        # === 绘图 ===
         fig, ax = plt.subplots(figsize=(10, 10))
         for x_vals, y_vals, color, thickness in curves:
             ax.plot(x_vals, y_vals, color=color, linewidth=thickness)
@@ -250,7 +250,7 @@ if __name__ == "__main__":
         plt.savefig(save_path_fig, dpi=300, bbox_inches='tight')
         plt.close()
 
-    # === 保存数据 ===
+        # === 保存数据 ===
         all_data_sorted = sorted(all_data, key=lambda x: x[0])  # x[0] 是 b
         all_data_array = np.array(all_data_sorted, dtype=np.float64)
         os.makedirs(os.path.dirname(save_path_data), exist_ok=True)
