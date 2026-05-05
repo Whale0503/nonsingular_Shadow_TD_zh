@@ -9,7 +9,7 @@ import json
 
 def make_shadow(step_b, input_path):
     start_time = time.time()
-    
+
     # 读取 npz 文件
     data = np.load(input_path)
     b_vals = data["b"]
@@ -80,7 +80,7 @@ def plot_density(b_vals, alpha_vals, F_vals, step_b, save_path, max_distance=0.0
     # 保存图像
  #   plt.savefig(save_path, dpi=300, bbox_inches='tight')
   #  plt.close()
- #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  # 
+ #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #  #
     # 无标签刻度绘图
     plt.figure(figsize=(8, 8))
     sc = plt.pcolormesh(grid_x, grid_y, grid_F, shading='auto', cmap=cmap, vmin=vmin, vmax=vmax)
@@ -101,7 +101,7 @@ def plot_density(b_vals, alpha_vals, F_vals, step_b, save_path, max_distance=0.0
     s = (
     rf"$\theta_0 = {theta0_deg:.0f}^\circ\,,\ \psi_0 = {psi0_deg:.0f}^\circ$" "\n"
     rf"$r_{{\rm in}} = {r_in:.0f}M\,,\ r_{{\rm out}} = {r_max:.0f}M$" "\n"
-    rf"$\kappa_{{\rm ff}} = {kappa_ff:.1f}\,,\ \kappa_{{\rm K}} = {kappa_K:.1f}$" 
+    rf"$\kappa_{{\rm ff}} = {kappa_ff:.1f}\,,\ \kappa_{{\rm K}} = {kappa_K:.1f}$"
     ),
     color = 'white',      # 字体颜色
     fontsize = font_size,        # 字体大小
@@ -109,7 +109,7 @@ def plot_density(b_vals, alpha_vals, F_vals, step_b, save_path, max_distance=0.0
     va = 'bottom'         # verticalalignment: 'top', 'center', 'bottom'
     )
     #############
-    
+
     plt.gca().set_xticks([])  # 去掉x轴刻度
     plt.gca().set_yticks([])  # 去掉y轴刻度
     plt.gca().set_xticklabels([])  # 去掉x轴标签
@@ -125,7 +125,7 @@ def plot_density(b_vals, alpha_vals, F_vals, step_b, save_path, max_distance=0.0
 
 if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(base_dir, "..", "config", "config.json")  
+    config_path = os.path.join(base_dir, "..", "config", "config.json")
     with open(config_path, 'r', encoding='utf-8') as f:
         config = json.load(f)
     step_b = config["step_b"]
@@ -143,8 +143,8 @@ if __name__ == "__main__":
        output_opt = f"{opt_regime}_{chi:.3f}"
     else:
          output_opt = opt_regime
-    
-    output_dir = os.path.join(base_dir, "..", "output")  
+
+    output_dir = os.path.join(base_dir, "..", "output")
     input_name = f"flux_rmax={r_max:.1f}_optical_{output_opt}_psi0={psi0_deg:.1f}_rin={r_in:.1f}_theta0={theta0_deg:.1f}_kappaff={kappa_ff:.3f}_kappaK={kappa_K:.3f}.npz"
     input_path = os.path.join(output_dir, input_name)
     file_name = os.path.basename(input_path).replace(".npz", "")

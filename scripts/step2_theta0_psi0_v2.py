@@ -14,7 +14,7 @@ import json
 #r_in = 6.0
 #psi0_deg = 10    # 展开角的角度值
 #theta0_deg = 70  # 倾角的角度值
-#theta0 =  math.radians(theta0_deg) 
+#theta0 =  math.radians(theta0_deg)
 #psi0 = math.radians(psi0_deg)
 #dalpha = 0.005
 #dphi = 0.005
@@ -47,7 +47,7 @@ def unit_flux(r, dr, b, alpha, cos2psi, psi0, kappa_ff, kappa_K, r_in, theta0, d
     cos_alpha = cos(alpha)
     sqrt_arg = 1.0 - (B * b**2) / r**2
     if sqrt_arg <= 0.0:
-       sqrt_arg = 0.0         
+       sqrt_arg = 0.0
 
     k_rabs = sqrt(sqrt_arg)
     k_r_over_k_t = (sign(dr)) / B * k_rabs
@@ -55,7 +55,7 @@ def unit_flux(r, dr, b, alpha, cos2psi, psi0, kappa_ff, kappa_K, r_in, theta0, d
     Ut_inv_sq = B - v_r**2 / B - r**2 * cos2psi * Omega**2
     U_t = 1.0 / sqrt(Ut_inv_sq)
     g = 1.0 / (U_t * (1.0 + v_r * k_r_over_k_t + Omega * k_phi_over_k_t))
-    
+
     if b < 5.0:
         flux = q_minus * (1.0 / k_rabs) * abs(dr) * g**4  / sqrt_B
     else:
@@ -70,10 +70,10 @@ def compute_absorption(r, dr, b, dphi, chi, M, r0_vac):
     sqrt_B = sqrt(B) if B > 0 else 0.0
     sqrt_arg = 1.0 - (B * b**2) / r**2
     if sqrt_arg <= 0.0:
-       sqrt_arg = 0.0         
+       sqrt_arg = 0.0
 
     k_rabs = sqrt(sqrt_arg)
-    
+
     if b < 5.0:
         dlambda =  (1.0 / k_rabs) * abs(dr) / sqrt_B
     else:
@@ -94,7 +94,7 @@ def area_flux(r, dr, b, alpha, cos2psi, psi0, kappa_ff, kappa_K, r_in, theta0, d
     cos_alpha = cos(alpha)
     sqrt_arg = 1.0 - (B * b**2) / r**2
     if sqrt_arg <= 0.0:
-       sqrt_arg = 0.0         
+       sqrt_arg = 0.0
 
     k_rabs = sqrt(sqrt_arg)
     k_r_over_k_t = (sign(dr)) / B * k_rabs
@@ -102,7 +102,7 @@ def area_flux(r, dr, b, alpha, cos2psi, psi0, kappa_ff, kappa_K, r_in, theta0, d
     Ut_inv_sq = B - v_r**2 / B - r**2 * cos2psi * Omega**2
     U_t = 1.0 / sqrt(Ut_inv_sq)
     g = 1.0 / (U_t * (1.0 + v_r * k_r_over_k_t + Omega * k_phi_over_k_t))
-    
+
 
     flux = Q_minus  * g**4
 
@@ -224,7 +224,7 @@ def process_b_range(min_b, max_b, input_file, temp_file, r_in, dalpha, theta0, p
 # --------------------- Main Controller ------------------------
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(base_dir, "..", "config", "config.json")  
+    config_path = os.path.join(base_dir, "..", "config", "config.json")
     with open(config_path, 'r', encoding='utf-8') as f:
         config = json.load(f)
 
@@ -239,7 +239,7 @@ def main():
     dalpha = config["dalpha"]
     dphi = config["dphi"]
     step_b = config["step_b"]
-    theta0 =  math.radians(theta0_deg) 
+    theta0 =  math.radians(theta0_deg)
     psi0 = math.radians(psi0_deg)
 
     opt_regime = config["optical_regime"].lower()
@@ -248,7 +248,7 @@ def main():
         output_opt = f"{opt_regime}_{chi:.3f}"
     else:
         output_opt = opt_regime
-    
+
     output_dir = os.path.join(base_dir, "..", "output")
     save_path_name = f"flux_rmax={r_max:.1f}_optical_{output_opt}_psi0={psi0_deg:.1f}_rin={r_in:.1f}_theta0={theta0_deg:.1f}_kappaff={kappa_ff:.3f}_kappaK={kappa_K:.3f}.npz"
     npz_path = os.path.join(output_dir, save_path_name)

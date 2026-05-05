@@ -39,7 +39,7 @@ def find_outer_horizon(M, r0_vac, r_min=1e-3, r_max=10.0, N=20000):
     """寻找非奇异黑洞外视界位置（B(r) = 0）"""
     r_grid = np.linspace(r_min, r_max, N)
     B_vals = B_func_nonsingular(r_grid, M, r0_vac)
-    
+
     roots = []
     for i in range(len(r_grid) - 1):
         if B_vals[i] * B_vals[i+1] < 0:
@@ -49,7 +49,7 @@ def find_outer_horizon(M, r0_vac, r_min=1e-3, r_max=10.0, N=20000):
                 roots.append(root)
             except:
                 continue
-    
+
     if len(roots) == 0:
         return None
     return max(roots)  # 最外层视界
@@ -183,7 +183,7 @@ def compute_by_r_step(b, r_start, dr, r_max, M, r0_vac, r_h, b_threshold=1.0):
 # === 主程序入口 ===
 if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(base_dir, "..", "config", "config.json")   
+    config_path = os.path.join(base_dir, "..", "config", "config.json")
     with open(config_path, 'r', encoding='utf-8') as f:
         config = json.load(f)
 
@@ -196,10 +196,10 @@ if __name__ == "__main__":
     b_max = config["b_max"]
     xmax = config["xmax"]
     ymax = config["ymax"]
-    
+
     phi_max = 6 * np.pi        # 最大积分角度
     b_threshold = 1.0
-    
+
     # 计算非奇异黑洞外视界
     r_h = find_outer_horizon(M, r0_vac)
     if r_h is None:
@@ -207,7 +207,7 @@ if __name__ == "__main__":
         r_h = 2 * M
     else:
         print(f"非奇异黑洞外视界 r_h = {r_h:.6f} M")
-    
+
     save_dir = os.path.join(base_dir, "..", "output")
     os.makedirs(save_dir, exist_ok=True)  # 确保目录存在
     save_path_fig = os.path.join(save_dir, f"geodesics_M={M}_r0vac={r0_vac}_rmax={r_max:.1f}_stepb={step_b:.3f}.png")
@@ -255,7 +255,7 @@ if __name__ == "__main__":
         all_data_array = np.array(all_data_sorted, dtype=np.float64)
         os.makedirs(os.path.dirname(save_path_data), exist_ok=True)
         np.save(save_path_data, all_data_array)
-        
+
         print(f"图像保存至：{save_path_fig}")
         print(f"数据保存至：{save_path_data}")
         print(f"数据量：{len(all_data)} 行")
